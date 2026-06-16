@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>授業申込カレンダー（保護者用）</title>
+<style>
+  :root {
+    --blue: #3b82f6; --yellow: #f59e0b; --green: #22c55e;
+    --red: #ef4444; --gray: #e5e7eb; --light-gray: #f9fafb;
+    --border: #d1d5db; --text: #111827; --text-light: #6b7280;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Meiryo", sans-serif; background: #f3f4f6; color: var(--text); min-height: 100vh; }
+  .app-header { background: var(--blue); color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .app-header h1 { font-size: 16px; font-weight: 700; }
+  .student-badge { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+  .student-setup { max-width: 400px; margin: 60px auto; padding: 24px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-align: center; }
+  .student-setup h2 { font-size: 18px; margin-bottom: 12px; }
+  .student-setup p { font-size: 14px; color: var(--text-light); margin-bottom: 20px; }
+  .student-setup input, .student-setup select { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; margin-bottom: 14px; background: #fff; }
+  .setup-label { font-size: 13px; font-weight: 700; color: var(--text-light); text-align: left; display: block; margin-bottom: 6px; }
+  .btn { padding: 16px 24px; border-radius: 10px; border: none; font-size: 17px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; width: 100%; }
+  .btn:active { opacity: 0.8; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .main { padding: 16px; }
+  .week-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 14px; }
+  .week-nav button { width: 34px; height: 34px; border: 1px solid var(--border); background: #fff; border-radius: 8px; cursor: pointer; font-size: 16px; }
+  .week-label { font-size: 15px; font-weight: 700; min-width: 160px; text-align: center; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; font-size: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
+  .grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .grid { display: grid; grid-template-columns: 56px repeat(7, 1fr); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--border); gap: 1px; min-width: 360px; user-select: none; -webkit-user-select: none; }
+  .grid-cell { background: #fff; padding: 0; }
+  .day-header { background: var(--light-gray); text-align: center; padding: 8px 2px; font-size: 11px; font-weight: 700; line-height: 1.3; }
+  .day-header .date-num { font-size: 14px; font-weight: 700; }
+  .day-header.today { background: #eff6ff; color: var(--blue); }
+  .day-header.sunday { color: var(--red); }
+  .day-header.saturday { color: #2563eb; }
+  .time-label { background: var(--light-gray); font-size: 10px; color: var(--text-light); display: flex; align-items: center; justify-content: center; padding: 0 2px; height: 44px; font-weight: 600; }
+  .slot { height: 44px; cursor: pointer; transition: background 0.1s; touch-action: none; }
+  .slot[data-state="0"] { background: #fff; }
+  .slot[data-state="0"]:hover { background: #dbeafe; }
+  .slot[data-state="1"] { background: #93c5fd; }
+  .slot[data-state="2"] { background: #fde68a; cursor: default; }
+  .slot[data-state="3"] { background: #bbf7d0; cursor: default; }
+  .slot[data-state="4"] { background: #fecaca; cursor: default; }
+  .submit-bar { margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .selection-info { font-size: 13px; color: var(--text-light); flex: 1; min-width: 0; }
+  .btn-inline { padding: 13px 20px; border-radius: 10px; border: none; font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; white-space: nowrap; }
+  .btn-inline:active { opacity: 0.8; }
+  .btn-inline-primary { background: var(--blue); color: #fff; }
+  .btn-inline-secondary { background: var(--gray); color: var(--text); }
+  .section-title { font-size: 15px; font-weight: 700; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--blue); color: var(--blue); }
+  .booking-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .booking-card {
+    background: #fff; padding: 12px 14px;
+    display: flex; align-items: flex-start; gap: 10px;
+    border-bottom: 1px solid #f3f4f6;
+    border-left: 4px solid transparent;
+  }
+  .booking-card:last-child { border-bottom: none; }
+  .booking-card.state-pending  { border-left-color: var(--yellow); }
+  .booking-card.state-approved { border-left-color: var(--green); }
+  .booking-card.state-rejected { border-left-color: #d1d5db; background: #fafafa; }
+  .booking-icon { font-size: 18px; text-align: center; }
+  .booking-info { min-width: 0; }
+  .booking-date { font-size: 12px; color: var(--text-light); font-weight: 600; }
+  .booking-time { font-weight: 800; font-size: 17px; color: var(--text); margin-top: 2px; letter-spacing: 0.5px; }
+  .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .status-pending  { background: #fde68a; color: #92400e; }
+  .status-approved { background: #bbf7d0; color: #15803d; }
+  .status-rejected { background: #e5e7eb; color: #6b7280; }
+  .cancel-btn { padding: 7px 14px; border-radius: 8px; border: 2px solid #ef4444; background: #fff; color: #b91c1c; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+  .cancel-btn:active { background: #fee2e2; }
+  .cancel-btn::before { content: '✕'; font-size: 11px; }
+  .time-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+  .time-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .time-text { font-weight: 800; font-size: 16px; color: var(--text); letter-spacing: 0.5px; }
+  /* 申込一覧ヘッダー */
+  .booking-header { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--blue); }
+  .booking-header-title { font-size: 15px; font-weight: 700; color: var(--blue); }
+  .btn-bulk-del { background: #fee2e2; color: #b91c1c; border: 1.5px solid #fca5a5; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn-bulk-del:active { background: #fecaca; }
+  /* チェックで浮かぶ選択削除バー */
+  .booking-sel-bar { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; background: #1e3a5f; color: #fff; border-radius: 30px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 100; white-space: nowrap; }
+  .booking-sel-label { font-size: 14px; font-weight: 700; }
+  .btn-cancel-sel { background: #ef4444; color: #fff; padding: 8px 18px; border-radius: 20px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; }
+  /* 選択した行ハイライト */
+  .time-row.checked { background: #fee2e2; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; }
+  .time-row input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; accent-color: #ef4444; flex-shrink: 0; }
+  .status-pending  { background: #fde68a; color: #92400e; }
+  .status-approved { background: #bbf7d0; color: #15803d; }
+  .status-rejected { background: #fecaca; color: #b91c1c; }
+  .loading { text-align: center; padding: 40px; color: var(--text-light); font-size: 14px; }
+  .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1f2937; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; white-space: nowrap; }
+  #toast.show { opacity: 1; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="setup-screen">
+  <div class="student-setup">
+    <h2>授業申込カレンダー</h2>
+    <p>お子様の情報を入力してください</p>
+    <label class="setup-label">お名前</label>
+    <input type="text" id="student-name-input" placeholder="例：山田 花子" />
+    <label class="setup-label">学年</label>
+    <select id="student-grade-input">
+      <option value="">-- 学年を選択 --</option>
+      <optgroup label="小学生">
+        <option>小1</option><option>小2</option><option>小3</option>
+        <option>小4</option><option>小5</option><option>小6</option>
+      </optgroup>
+      <optgroup label="中学生">
+        <option>中1</option><option>中2</option><option>中3</option>
+      </optgroup>
+      <optgroup label="高校生">
+        <option>高1</option><option>高2</option><option>高3</option>
+      </optgroup>
+    </select>
+    <button class="btn btn-primary" onclick="startApp()">はじめる</button>
+  </div>
+</div>
+
+<div id="main-screen" class="hidden">
+  <div class="app-header">
+    <h1>📅 授業申込</h1>
+    <div class="student-badge" id="header-student"></div>
+  </div>
+  <div class="main">
+    <div class="week-nav">
+      <button onclick="prevWeek()">◀</button>
+      <div class="week-label" id="week-label"></div>
+      <button onclick="nextWeek()">▶</button>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#fff;border:1.5px solid #d1d5db"></div>空き</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#93c5fd"></div>選択中</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fde68a"></div>選択済</div>
+    </div>
+    <div class="grid-wrap">
+      <div class="grid" id="cal-grid"
+        onmousedown="startDrag(event)" onmousemove="moveDrag(event)" onmouseup="endDrag(event)"
+        ontouchstart="startDrag(event)" ontouchmove="moveDrag(event)" ontouchend="endDrag(event)">
+      </div>
+    </div>
+    <div class="submit-bar">
+      <div class="selection-info" id="selection-info">タップまたはドラッグで時間を選択</div>
+      <button class="btn-inline btn-inline-secondary" onclick="clearSelection()">クリア</button>
+      <button class="btn-inline btn-inline-primary" onclick="submitSelection()">送信する</button>
+    </div>
+    <div class="booking-header">
+      <span class="booking-header-title">📋 申込一覧</span>
+      <button class="btn-bulk-del" onclick="cancelAll()">🗑️ 一括削除</button>
+    </div>
+    <!-- 選択時のみ表示（固定フローティング） -->
+    <div id="booking-sel-bar" class="booking-sel-bar" style="display:none">
+      <span class="booking-sel-label" id="booking-sel-label">0件選択中</span>
+      <button class="btn-cancel-sel" onclick="cancelSelected()">🗑️ 選択削除</button>
+    </div>
+    <div id="bookings-area"><div class="loading"><div class="spinner"></div><br>読み込み中...</div></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbybnZ0dFwm0cQLzHwaLuYJyylX3BkklrJ2HD5TLsrCUp6hiDvZ-bn0oyj6JztuNVBem7Q/exec';
+
+const HOURS_START = 9, HOURS_END = 22;
+const TOTAL_SLOTS = HOURS_END - HOURS_START; // 13行（1行=1時間）
+const DAYS = ["日","月","火","水","木","金","土"];
+const STATE = { EMPTY:0, SELECTED:1, PENDING:2, APPROVED:3, REJECTED:4 };
+
+let currentStudent = '', currentGrade = '', weekOffset = 0;
+let localDb = {}, serverRows = [];
+
+// ========== JSONP ==========
+let _cbIdx = 0;
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = '__gasCallback' + (_cbIdx++);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('タイムアウト'));
+    }, 15000);
+    window[cbName] = (data) => { cleanup(); resolve(data); };
+    function cleanup() { clearTimeout(timer); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    script.onerror = () => { cleanup(); reject(new Error('通信エラー')); };
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
+    document.head.appendChild(script);
+  });
+}
+
+// ========== 初期化 ==========
+function startApp() {
+  // 全角・半角スペースをすべて除去して正規化（GAS側も同様に正規化）
+  const raw = document.getElementById('student-name-input').value;
+  const name = raw.replace(/[\s　]/g, '');
+  const grade = document.getElementById('student-grade-input').value;
+  if (!name) { showToast('お名前を入力してください'); return; }
+  if (!grade) { showToast('学年を選択してください'); return; }
+  currentStudent = name;
+  currentGrade = grade;
+  document.getElementById('header-student').textContent = `${grade} ${name}`;
+  document.getElementById('setup-screen').classList.add('hidden');
+  document.getElementById('main-screen').classList.remove('hidden');
+  loadFromServer();
+}
+
+async function loadFromServer() {
+  document.getElementById('bookings-area').innerHTML =
+    '<div class="loading"><div class="spinner"></div><br>読み込み中...</div>';
+  try {
+    const data = await jsonp(`${GAS_URL}?action=getByStudent&student=${encodeURIComponent(currentStudent)}`);
+    serverRows = data.rows || [];
+    buildLocalDbFromServer();
+  } catch (e) {
+    showToast('読み込みエラー: ' + e.message);
+    serverRows = [];
+  }
+  renderGrid();
+  renderBookings();
+}
+
+function buildLocalDbFromServer() {
+  localDb = {};
+  serverRows.forEach(row => {
+    const date = fmtDateStr(row['日付']);
+    const start = fmtTimeStr(row['開始時刻']);
+    const end = fmtTimeStr(row['終了時刻']);
+    const status = row['状態'], id = row['ID'];
+    const state = status === '申請中' ? STATE.PENDING : status === '承認済み' ? STATE.APPROVED : status === '却下' ? STATE.REJECTED : STATE.EMPTY;
+    const si = timeToSlotIdx(start), ei = timeToSlotIdx(end);
+    if (si === null || ei === null) return;
+    localDb[date] = localDb[date] || {};
+    for (let i = si; i < ei; i++) localDb[date][i] = { state, id };
+  });
+}
+
+function timeToSlotIdx(t) {
+  if (!t) return null;
+  const [h] = String(t).split(':').map(Number);
+  if (isNaN(h)) return null;
+  const idx = h - HOURS_START;
+  return (idx < 0 || idx > TOTAL_SLOTS) ? null : idx;
+}
+
+// ========== 週ナビ ==========
+function getWeekDates(offset = 0) {
+  const today = new Date(), dow = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1) + offset * 7);
+  return Array.from({length:7}, (_,i) => { const d = new Date(monday); d.setDate(monday.getDate()+i); return d; });
+}
+function fmtDate(d) { return d.toISOString().slice(0,10); }
+function isToday(d) { return fmtDate(d) === fmtDate(new Date()); }
+function slotLabel(idx) {
+  return `${(HOURS_START + idx).toString().padStart(2,'0')}:00`;
+}
+function prevWeek() { weekOffset--; renderGrid(); }
+function nextWeek() { weekOffset++; renderGrid(); }
+
+// ========== グリッド ==========
+function renderGrid() {
+  const dates = getWeekDates(weekOffset);
+  const grid = document.getElementById('cal-grid');
+  const first = dates[0], last = dates[6];
+  document.getElementById('week-label').textContent = `${first.getMonth()+1}/${first.getDate()}〜${last.getMonth()+1}/${last.getDate()}`;
+  grid.innerHTML = '';
+  const corner = document.createElement('div');
+  corner.className = 'grid-cell day-header';
+  grid.appendChild(corner);
+  dates.forEach(d => {
+    const cell = document.createElement('div');
+    const dow = d.getDay();
+    let cls = 'grid-cell day-header';
+    if (isToday(d)) cls += ' today';
+    else if (dow===0) cls += ' sunday';
+    else if (dow===6) cls += ' saturday';
+    cell.className = cls;
+    cell.innerHTML = `<div>${DAYS[dow]}</div><div class="date-num">${d.getDate()}</div>`;
+    grid.appendChild(cell);
+  });
+  for (let s = 0; s < TOTAL_SLOTS; s++) {
+    const timeCell = document.createElement('div');
+    timeCell.className = 'grid-cell time-label';
+    timeCell.textContent = slotLabel(s);
+    grid.appendChild(timeCell);
+    dates.forEach(d => {
+      const key = fmtDate(d);
+      const entry = localDb[key] && localDb[key][s];
+      const state = entry ? entry.state : STATE.EMPTY;
+      const cell = document.createElement('div');
+      cell.className = 'grid-cell slot';
+      cell.dataset.date = key; cell.dataset.slot = s; cell.dataset.state = state;
+      if (s > 0) cell.style.borderTop = '1px solid #d1d5db';
+      grid.appendChild(cell);
+    });
+  }
+  // 22:00 終端ラベル
+  const endLabel = document.createElement('div');
+  endLabel.className = 'grid-cell time-label';
+  endLabel.textContent = '22:00';
+  grid.appendChild(endLabel);
+  for (let i = 0; i < 7; i++) {
+    const endCell = document.createElement('div');
+    endCell.className = 'grid-cell';
+    endCell.style.cssText = 'height:10px;background:#f9fafb;border-top:2px solid #d1d5db;';
+    grid.appendChild(endCell);
+  }
+  updateSelectionInfo();
+}
+
+// ========== ドラッグ ==========
+let dragging = false, dragPaintState = STATE.SELECTED;
+function getSlotFromEvent(e) {
+  const touch = e.touches ? e.touches[0] : e;
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  return el && el.classList.contains('slot') ? el : null;
+}
+function startDrag(e) {
+  const slot = getSlotFromEvent(e);
+  if (!slot) return;
+  const state = parseInt(slot.dataset.state);
+  if (state >= STATE.PENDING) return;
+  dragging = true;
+  dragPaintState = state === STATE.SELECTED ? STATE.EMPTY : STATE.SELECTED;
+  paintSlot(slot, dragPaintState);
+  e.preventDefault();
+}
+function moveDrag(e) {
+  if (!dragging) return;
+  const slot = getSlotFromEvent(e);
+  if (!slot || parseInt(slot.dataset.state) >= STATE.PENDING) return;
+  paintSlot(slot, dragPaintState);
+  e.preventDefault();
+}
+function endDrag() { dragging = false; updateSelectionInfo(); }
+function paintSlot(slot, state) {
+  const key = slot.dataset.date, s = parseInt(slot.dataset.slot);
+  localDb[key] = localDb[key] || {};
+  if (state === STATE.EMPTY) delete localDb[key][s];
+  else localDb[key][s] = { state, id: null };
+  slot.dataset.state = state;
+}
+function clearSelection() {
+  document.querySelectorAll('.slot[data-state="1"]').forEach(slot => {
+    const key = slot.dataset.date, s = parseInt(slot.dataset.slot);
+    if (localDb[key]) delete localDb[key][s];
+    slot.dataset.state = STATE.EMPTY;
+  });
+  updateSelectionInfo();
+}
+function updateSelectionInfo() {
+  const selected = document.querySelectorAll('.slot[data-state="1"]');
+  const info = document.getElementById('selection-info');
+  if (selected.length === 0) { info.textContent = 'タップまたはドラッグで時間を選択'; return; }
+  const byDate = {};
+  selected.forEach(sl => { const d = sl.dataset.date; byDate[d] = byDate[d]||[]; byDate[d].push(parseInt(sl.dataset.slot)); });
+  info.textContent = Object.entries(byDate).map(([d,slots]) => {
+    slots.sort((a,b)=>a-b);
+    return `${d.slice(5)} ${mergeSlots(slots).join('/')}`;
+  }).join(' | ');
+}
+function mergeSlots(sorted) {
+  const ranges = []; let start = sorted[0], prev = sorted[0];
+  for (let i = 1; i <= sorted.length; i++) {
+    if (i < sorted.length && sorted[i] === prev+1) { prev = sorted[i]; continue; }
+    ranges.push(`${slotLabel(start)}〜${slotLabel(prev+1)}`);
+    if (i < sorted.length) { start = sorted[i]; prev = sorted[i]; }
+  }
+  return ranges;
+}
+
+// ========== 申請 ==========
+async function submitSelection() {
+  const slots = [];
+  const daysJP = ['日','月','火','水','木','金','土'];
+  let dupFound = false;
+
+  Object.entries(localDb).forEach(([date, daySlots]) => {
+    const selected = Object.entries(daySlots).filter(([,v])=>v.state===STATE.SELECTED).map(([k])=>Number(k)).sort((a,b)=>a-b);
+    if (selected.length === 0) return;
+
+    // 重複チェック：同じ日の申請中・承認済みスロットと重なっていないか
+    selected.forEach(s => {
+      const existing = serverRows.find(row => {
+        if (row['日付'] !== date) return false;
+        if (row['状態'] === '却下') return false;
+        const si = timeToSlotIdx(fmtTimeStr(row['開始時刻']));
+        const ei = timeToSlotIdx(fmtTimeStr(row['終了時刻']));
+        return s >= si && s < ei;
+      });
+      if (existing) dupFound = true;
+    });
+
+    let start = selected[0], prev = selected[0];
+    for (let i = 1; i <= selected.length; i++) {
+      if (i < selected.length && selected[i] === prev+1) { prev = selected[i]; continue; }
+      const d = new Date(date+'T00:00:00');
+      slots.push({ student: currentStudent, grade: currentGrade, date, dow: daysJP[d.getDay()], start: slotLabel(start), end: slotLabel(prev+1) });
+      if (i < selected.length) { start = selected[i]; prev = selected[i]; }
+    }
+  });
+
+  if (slots.length === 0) { showToast('選択中のスロットがありません'); return; }
+  if (dupFound) { showToast('⚠️ すでに申請中・承認済みの時間帯と重複しています'); return; }
+
+  showToast('送信中...');
+  try {
+    const url = `${GAS_URL}?action=submit&slots=${encodeURIComponent(JSON.stringify(slots))}`;
+    const data = await jsonp(url);
+    if (data.error) throw new Error(data.error);
+    // 選択中→申請中に変更してグリッドを黄色表示
+    Object.values(localDb).forEach(daySlots => Object.values(daySlots).forEach(v => { if (v.state === STATE.SELECTED) v.state = STATE.PENDING; }));
+    renderGrid();
+    showToast('送信されました！');
+    // サーバー同期（失敗しても黄色を維持）
+    try {
+      const syncData = await jsonp(`${GAS_URL}?action=getByStudent&student=${encodeURIComponent(currentStudent)}`);
+      if (syncData.rows && syncData.rows.length > 0) {
+        serverRows = syncData.rows;
+        buildLocalDbFromServer();
+        renderGrid();
+        renderBookings();
+      }
+      // サーバーが空でも黄色はそのまま維持（localDbは上書きしない）
+    } catch(e) { /* 通信エラーでも表示はそのまま */ }
+  } catch (e) {
+    showToast('送信失敗: ' + e.message);
+  }
+}
+
+// ========== 取り消し ==========
+async function cancelBooking(id) {
+  if (!confirm('この申請を取り消しますか？')) return;
+  showToast('取り消し中...');
+  try {
+    const data = await jsonp(`${GAS_URL}?action=delete&id=${encodeURIComponent(id)}`);
+    if (data.error) throw new Error(data.error);
+    await loadFromServer();
+    showToast('取り消しました');
+  } catch (e) {
+    showToast('取り消し失敗: ' + e.message);
+  }
+}
+
+// ========== 申込一覧 ==========
+// ISO日付・時刻文字列を読みやすく変換
+function fmtDateStr(s) {
+  if (!s) return '';
+  const str = String(s);
+  if (str.includes('T')) {
+    const d = new Date(str);
+    return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+  }
+  return str.slice(0, 10);
+}
+function fmtTimeStr(s) {
+  if (!s) return '';
+  const str = String(s);
+  // "1899-12-30T08:00:00.000Z" 形式
+  if (str.includes('T')) {
+    const d = new Date(str);
+    const jst = new Date(d.getTime() + 9*60*60*1000);
+    return `${jst.getUTCHours().toString().padStart(2,'0')}:${jst.getUTCMinutes().toString().padStart(2,'0')}`;
+  }
+  // "1899-12-30 17:00" や "1899-12-30 17:00:00" 形式（Sheetsの時刻型）
+  const m = str.match(/(\d{2}:\d{2})(?::\d{2})?$/);
+  if (m) return m[1];
+  return str;
+}
+
+function renderBookings() {
+  const area = document.getElementById('bookings-area');
+  const daysJP = ['日','月','火','水','木','金','土'];
+  if (serverRows.length === 0) {
+    area.innerHTML = '<p style="color:#6b7280;text-align:center;padding:20px;font-size:14px">申込データはありません</p>';
+    return;
+  }
+
+  // 日付でグループ化
+  const groups = {};
+  serverRows.forEach(row => {
+    const dateStr = fmtDateStr(row['日付']);
+    groups[dateStr] = groups[dateStr] || [];
+    groups[dateStr].push({ ...row, '日付': dateStr, '開始時刻': fmtTimeStr(row['開始時刻']), '終了時刻': fmtTimeStr(row['終了時刻']) });
+  });
+
+  const statusPriority = { '申請中':0, '承認済み':1, '却下':2 };
+  const statusMap = { '申請中':{cls:'status-pending',label:'申請中',icon:'🕐',stateClass:'state-pending'}, '承認済み':{cls:'status-approved',label:'承認済み',icon:'✅',stateClass:'state-approved'}, '却下':{cls:'status-rejected',label:'却下',icon:'❌',stateClass:'state-rejected'} };
+
+  const html = Object.entries(groups)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([dateStr, rows]) => {
+      const dateObj = new Date(dateStr + 'T00:00:00');
+      const dow = daysJP[dateObj.getDay()];
+      rows.sort((a,b) => a['開始時刻'].localeCompare(b['開始時刻']));
+
+      // この日の主要ステータス（申請中>承認済み>却下）
+      const topStatus = rows.reduce((best, r) => {
+        const p = statusPriority[r['状態']] ?? 99;
+        return p < (statusPriority[best] ?? 99) ? r['状態'] : best;
+      }, rows[0]['状態']);
+      const { cls, icon, stateClass } = statusMap[topStatus] || { cls:'', icon:'📅', stateClass:'' };
+
+      const timeRows = rows.map(r => {
+        return `<div class="time-row">
+          <input type="checkbox" data-id="${r['ID']}" onchange="updateBookingSelBar()">
+          <span class="time-text">${r['開始時刻']} 〜 ${r['終了時刻']}</span>
+        </div>`;
+      }).join('');
+
+      return `<div class="booking-card ${stateClass}">
+        <div class="booking-icon">${icon}</div>
+        <div class="booking-info" style="flex:1;min-width:0">
+          <div class="booking-date">${dateStr}（${dow}）</div>
+          <div class="time-rows">${timeRows}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+  area.innerHTML = `<div class="booking-list">${html}</div>`;
+}
+
+
+// ========== 一括削除 ==========
+function updateBookingSelBar() {
+  const all = document.querySelectorAll('#bookings-area input[type=checkbox][data-id]');
+  const checked = [...all].filter(c => c.checked);
+  const bar = document.getElementById('booking-sel-bar');
+  // 行ハイライト
+  all.forEach(cb => cb.closest('.time-row').classList.toggle('checked', cb.checked));
+  if (checked.length > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('booking-sel-label').textContent = `${checked.length}件選択中`;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+async function cancelSelected() {
+  const checked = [...document.querySelectorAll('#bookings-area input[type=checkbox][data-id]:checked')];
+  if (checked.length === 0) return;
+  if (!confirm(`選択した${checked.length}件の申請を取り消しますか？`)) return;
+  showToast('取り消し中...');
+  for (const cb of checked) {
+    await jsonp(`${GAS_URL}?action=delete&id=${encodeURIComponent(cb.dataset.id)}`);
+  }
+  document.getElementById('booking-sel-bar').style.display = 'none';
+  await loadFromServer();
+  showToast('取り消しました');
+}
+
+async function cancelAll() {
+  if (serverRows.length === 0) return;
+  if (!confirm(`全${serverRows.length}件の申請を取り消しますか？`)) return;
+  showToast('取り消し中...');
+  for (const row of serverRows) {
+    await jsonp(`${GAS_URL}?action=delete&id=${encodeURIComponent(row['ID'])}`);
+  }
+  document.getElementById('booking-sel-bar').style.display = 'none';
+  await loadFromServer();
+  showToast('全件取り消しました');
+}
+
+// ========== TOAST ==========
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

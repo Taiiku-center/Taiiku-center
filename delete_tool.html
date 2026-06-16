@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><title>予約データ削除</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: sans-serif; padding: 16px; background: #f3f4f6; }
+  .box { background: #fff; border-radius: 10px; padding: 16px; max-width: 600px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+  h2 { margin-bottom: 12px; font-size: 16px; }
+  .btn-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  button { padding: 10px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .btn-load { background: #3b82f6; color: #fff; }
+  .btn-sel-all { background: #e5e7eb; color: #111; font-size: 13px; }
+  .btn-del-all { background: #7f1d1d; color: #fff; }
+  .count { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+
+  /* 選択済みバー */
+  .sel-bar { display: none; align-items: center; gap: 10px; background: #1e3a5f; color: #fff; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; }
+  .sel-bar.visible { display: flex; }
+  .sel-label { font-size: 14px; font-weight: 700; flex: 1; }
+  .btn-del-sel { background: #ef4444; color: #fff; padding: 8px 18px; border-radius: 8px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .btn-del-sel:active { opacity: 0.8; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f9fafb; padding: 8px 6px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 12px; color: #6b7280; }
+  td { padding: 8px 6px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+  tr.selected td { background: #eff6ff; }
+  tr:hover td { background: #f9fafb; }
+  tr.selected:hover td { background: #dbeafe; }
+  input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+  .badge { padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .s-pending  { background: #fde68a; color: #92400e; }
+  .s-approved { background: #bbf7d0; color: #15803d; }
+  .s-rejected { background: #fecaca; color: #b91c1c; }
+  #log { margin-top: 12px; font-size: 12px; color: #374151; white-space: pre-wrap; background: #f9fafb; border-radius: 6px; padding: 10px; min-height: 40px; display: none; }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid #d1d5db; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="box">
+  <h2>🗑️ 予約データ削除</h2>
+  <div class="btn-row">
+    <button class="btn-load" onclick="loadData()">データ読み込み</button>
+    <button class="btn-sel-all" id="btn-sel-all" onclick="toggleAll()" disabled>全選択</button>
+    <button class="btn-del-all" id="btn-del-all" onclick="deleteAll()" disabled>一括削除</button>
+  </div>
+
+  <!-- 選択済みバー -->
+  <div class="sel-bar" id="sel-bar">
+    <span class="sel-label" id="sel-label">選択済 0件</span>
+    <button class="btn-del-sel" onclick="deleteSelected()">🗑️ 選択済を削除</button>
+  </div>
+
+  <div class="count" id="count"></div>
+  <div id="table-area"></div>
+  <div id="log"></div>
+</div>
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbybnZ0dFwm0cQLzHwaLuYJyylX3BkklrJ2HD5TLsrCUp6hiDvZ-bn0oyj6JztuNVBem7Q/exec';
+let _cb = 0, allRows = [];
+
+function jsonp(url) {
+  return new Promise((res, rej) => {
+    const cb = '__cb' + (_cb++);
+    const s = document.createElement('script');
+    const t = setTimeout(() => { cleanup(); rej(new Error('timeout')); }, 15000);
+    window[cb] = d => { cleanup(); res(d); };
+    function cleanup() { clearTimeout(t); delete window[cb]; s.parentNode && s.parentNode.removeChild(s); }
+    s.onerror = () => { cleanup(); rej(new Error('error')); };
+    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    document.head.appendChild(s);
+  });
+}
+
+function setBtns(disabled) {
+  ['btn-sel-all','btn-del-all'].forEach(id => {
+    document.getElementById(id).disabled = disabled || allRows.length === 0;
+  });
+}
+
+function updateSelBar() {
+  const checked = document.querySelectorAll('input[type=checkbox][data-i]:checked');
+  const bar = document.getElementById('sel-bar');
+  if (checked.length > 0) {
+    bar.classList.add('visible');
+    document.getElementById('sel-label').textContent = `選択済 ${checked.length}件`;
+    // 行のハイライト更新
+    document.querySelectorAll('input[type=checkbox][data-i]').forEach(cb => {
+      cb.closest('tr').classList.toggle('selected', cb.checked);
+    });
+  } else {
+    bar.classList.remove('visible');
+    document.querySelectorAll('tr.selected').forEach(tr => tr.classList.remove('selected'));
+  }
+}
+
+function log(msg) {
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  el.textContent += msg + '\n';
+}
+
+async function loadData() {
+  document.getElementById('table-area').innerHTML = '<div style="padding:16px;color:#6b7280"><span class="spinner"></span>読み込み中...</div>';
+  document.getElementById('log').style.display = 'none';
+  document.getElementById('log').textContent = '';
+  document.getElementById('sel-bar').classList.remove('visible');
+  try {
+    const data = await jsonp(GAS_URL + '?action=getAll');
+    allRows = data.rows || [];
+    renderTable();
+  } catch(e) {
+    document.getElementById('table-area').innerHTML = `<p style="color:#ef4444;padding:12px">エラー: ${e.message}</p>`;
+  }
+}
+
+function renderTable() {
+  document.getElementById('count').textContent = `全${allRows.length}件`;
+  setBtns(false);
+  if (allRows.length === 0) {
+    document.getElementById('table-area').innerHTML = '<p style="color:#6b7280;padding:12px">データがありません</p>';
+    return;
+  }
+  const rows = allRows.map((r, i) => {
+    const sc = r['状態'] === '申請中' ? 's-pending' : r['状態'] === '承認済み' ? 's-approved' : 's-rejected';
+    return `<tr>
+      <td><input type="checkbox" data-i="${i}" onchange="updateSelBar()"></td>
+      <td>${r['生徒名'] || ''}</td>
+      <td>${r['学年'] || ''}</td>
+      <td>${r['日付'] || ''}</td>
+      <td>${r['開始時刻'] || ''}〜${r['終了時刻'] || ''}</td>
+      <td><span class="badge ${sc}">${r['状態'] || ''}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('table-area').innerHTML = `
+    <table>
+      <thead><tr><th></th><th>生徒名</th><th>学年</th><th>日付</th><th>時間</th><th>状態</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function toggleAll() {
+  const boxes = document.querySelectorAll('input[type=checkbox][data-i]');
+  const allChecked = [...boxes].every(b => b.checked);
+  boxes.forEach(b => b.checked = !allChecked);
+  document.getElementById('btn-sel-all').textContent = allChecked ? '全選択' : '全解除';
+  updateSelBar();
+}
+
+async function deleteSelected() {
+  const checked = [...document.querySelectorAll('input[type=checkbox][data-i]:checked')];
+  if (checked.length === 0) return;
+  if (!confirm(`選択した${checked.length}件を削除しますか？`)) return;
+  const targets = checked.map(b => allRows[parseInt(b.dataset.i)]);
+  await doDelete(targets);
+}
+
+async function deleteAll() {
+  if (!confirm(`全${allRows.length}件を削除しますか？`)) return;
+  await doDelete(allRows);
+}
+
+async function doDelete(targets) {
+  setBtns(true);
+  document.getElementById('log').textContent = '';
+  document.getElementById('log').style.display = 'block';
+  let done = 0;
+  for (const row of targets) {
+    await jsonp(`${GAS_URL}?action=delete&id=${encodeURIComponent(row['ID'])}`);
+    done++;
+    log(`削除 ${done}/${targets.length}: ${row['生徒名']} ${row['日付']} ${row['開始時刻']}〜${row['終了時刻']}`);
+  }
+  log(`\n✅ ${done}件削除しました`);
+  await loadData();
+}
+</script>
+</body>
+</html>

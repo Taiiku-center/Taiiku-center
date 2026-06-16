@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理者画面 — 授業申込</title>
+<style>
+  :root { --blue:#3b82f6; --yellow:#f59e0b; --green:#22c55e; --red:#ef4444; --gray:#e5e7eb; --light-gray:#f9fafb; --border:#d1d5db; --text:#111827; --text-light:#6b7280; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Meiryo",sans-serif; background:#f3f4f6; color:var(--text); }
+
+  .app-header { background:#1e3a5f; color:#fff; padding:14px 20px; display:flex; align-items:center; justify-content:space-between; }
+  .app-header h1 { font-size:17px; font-weight:700; }
+  .reload-btn { padding:6px 14px; border-radius:6px; border:none; background:rgba(255,255,255,0.15); color:#fff; font-size:13px; font-weight:600; cursor:pointer; }
+
+  .main { padding:16px; max-width:1100px; margin:0 auto; }
+  .section-title { font-size:15px; font-weight:700; margin:20px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--blue); color:var(--blue); display:flex; align-items:center; justify-content:space-between; }
+
+  /* PENDING */
+  .pending-list { display:flex; flex-direction:column; gap:8px; }
+  .pending-card { background:#fff; border-radius:8px; border-left:4px solid var(--yellow); padding:12px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .pending-info { flex:1; min-width:0; }
+  .pending-name { font-weight:700; font-size:15px; }
+  .pending-date { font-size:13px; color:var(--text-light); margin-top:3px; }
+  .pending-times { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .time-chip { background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:4px; padding:2px 8px; font-size:13px; font-weight:600; }
+  .grade-chip { background:#ede9fe; color:#5b21b6; border-radius:4px; padding:2px 8px; font-size:12px; font-weight:700; }
+  .pending-actions { display:flex; gap:6px; align-self:center; }
+  .btn-sm { padding:10px 20px; border-radius:8px; border:none; font-size:14px; font-weight:700; cursor:pointer; }
+  .btn-sm:active { opacity:0.8; }
+  .btn-approve { background:var(--green); color:#fff; }
+  .btn-reject  { background:var(--red); color:#fff; }
+
+  /* === カレンダーナビ === */
+  .cal-nav { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  .cal-nav button { width:32px; height:32px; border:1px solid var(--border); background:#fff; border-radius:6px; cursor:pointer; font-size:15px; }
+  .cal-nav-label { font-size:14px; font-weight:700; min-width:160px; }
+  .view-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-left:auto; }
+  .view-tab { padding:6px 14px; font-size:13px; font-weight:600; border:none; background:#fff; color:var(--text-light); cursor:pointer; }
+  .view-tab.active { background:var(--blue); color:#fff; }
+
+  /* LEGEND */
+  .legend { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px; font-size:12px; }
+  .legend-item { display:flex; align-items:center; gap:4px; }
+  .legend-dot { width:12px; height:12px; border-radius:3px; }
+
+  /* === 週・日ビュー（タイムライン） === */
+  .cal-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .cal-container { display:flex; min-width:400px; border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
+  .cal-time-col { width:48px; flex-shrink:0; background:var(--light-gray); border-right:1px solid var(--border); }
+  .cal-time-corner { border-bottom:1px solid var(--border); }
+  .cal-days { display:flex; flex:1; min-width:0; }
+  .cal-day { flex:1; min-width:0; border-left:1px solid var(--border); display:flex; flex-direction:column; }
+  .cal-day:first-child { border-left:none; }
+  .cal-day-header { display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--light-gray); border-bottom:1px solid var(--border); font-size:11px; font-weight:700; line-height:1.3; gap:1px; padding:6px 2px; }
+  .cal-day-header .dn { font-size:15px; font-weight:800; }
+  .cal-day-header.today { background:#eff6ff; color:var(--blue); }
+  .cal-day-header.sunday { color:var(--red); }
+  .cal-day-header.saturday { color:#2563eb; }
+  .cal-events-area { position:relative; flex:1; }
+  .cal-hour-line { position:absolute; left:0; right:0; border-top:1px solid #e5e7eb; pointer-events:none; }
+  .cal-event {
+    position:absolute;
+    border-radius:5px; padding:3px 5px;
+    font-size:11px; font-weight:700;
+    overflow:hidden; cursor:default;
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+    border-left:3px solid transparent;
+    line-height:1.3;
+  }
+  .cal-event.ev-pending  { background:#fef9c3; border-color:#f59e0b; color:#78350f; }
+  .cal-event.ev-approved { background:#dcfce7; border-color:#22c55e; color:#14532d; }
+  .cal-event.ev-rejected { background:#fee2e2; border-color:#ef4444; color:#7f1d1d; }
+  .cal-event .ev-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cal-event .ev-time { font-size:10px; font-weight:600; opacity:0.8; white-space:nowrap; }
+
+  /* === 月ビュー === */
+  .month-grid { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .month-dow-row { display:grid; grid-template-columns:repeat(7,1fr); background:var(--light-gray); border-bottom:1px solid var(--border); }
+  .month-dow-cell { text-align:center; padding:8px 4px; font-size:12px; font-weight:700; }
+  .month-dow-cell.sunday { color:var(--red); }
+  .month-dow-cell.saturday { color:#2563eb; }
+  .month-weeks { display:flex; flex-direction:column; }
+  .month-week-row { display:grid; grid-template-columns:repeat(7,1fr); border-top:1px solid var(--border); }
+  .month-week-row:first-child { border-top:none; }
+  .month-cell { min-height:80px; border-left:1px solid var(--border); padding:4px; position:relative; background:#fff; }
+  .month-cell:nth-child(7n+1) { border-left:none; }
+  .month-cell.other-month { background:#fafafa; }
+  .month-cell.today-cell { background:#eff6ff; }
+  .month-date { font-size:12px; font-weight:700; color:var(--text-light); margin-bottom:3px; display:inline-flex; width:22px; height:22px; align-items:center; justify-content:center; border-radius:50%; }
+  .month-cell.today-cell .month-date { background:var(--blue); color:#fff; }
+  .month-cell.sunday .month-date { color:var(--red); }
+  .month-cell.saturday .month-date { color:#2563eb; }
+  .month-cell.clickable { cursor:pointer; }
+  .month-cell.clickable:hover { background:#f0f9ff; }
+  .month-ev { font-size:10px; font-weight:700; border-radius:3px; padding:1px 5px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .month-ev.ev-pending  { background:#fde68a; color:#92400e; }
+  .month-ev.ev-approved { background:#bbf7d0; color:#15803d; }
+  .month-ev.ev-rejected { background:#fecaca; color:#b91c1c; }
+  .month-more { font-size:10px; color:var(--text-light); font-weight:600; padding-left:2px; }
+
+  /* TABLE */
+  .filter-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .filter-bar select, .filter-bar input { padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; background:#fff; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; min-width:600px; }
+  th { background:var(--light-gray); padding:8px 10px; border:1px solid var(--border); font-weight:700; text-align:center; white-space:nowrap; }
+  td { padding:8px 10px; border:1px solid var(--border); vertical-align:middle; }
+  .badge { display:inline-block; padding:3px 8px; border-radius:4px; font-size:12px; font-weight:600; }
+  .badge-pending  { background:#fde68a; color:#92400e; }
+  .badge-approved { background:#bbf7d0; color:#15803d; }
+  .badge-rejected { background:#fecaca; color:#b91c1c; }
+  .csv-btn { padding:8px 16px; border-radius:6px; border:none; background:var(--green); color:#fff; font-size:13px; font-weight:700; cursor:pointer; }
+
+  /* LOADING */
+  .loading { text-align:center; padding:40px; color:var(--text-light); font-size:14px; }
+  .spinner { display:inline-block; width:24px; height:24px; border:3px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:8px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1f2937; color:#fff; padding:10px 20px; border-radius:8px; font-size:14px; font-weight:600; opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:999; white-space:nowrap; }
+  #toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <h1>🔧 管理者画面 — 授業申込</h1>
+  <button class="reload-btn" onclick="loadAll()">🔄 更新</button>
+</div>
+
+<div class="main">
+
+  <!-- 申請中 -->
+  <div class="section-title">📥 申請中（承認・却下待ち）</div>
+  <div id="pending-area"><div class="loading"><div class="spinner"></div><br>読み込み中...</div></div>
+
+  <!-- カレンダー -->
+  <div class="section-title"><span>📅 スケジュール</span></div>
+  <div class="cal-nav">
+    <button onclick="navPrev()">◀</button>
+    <div class="cal-nav-label" id="cal-nav-label"></div>
+    <button onclick="navNext()">▶</button>
+    <button onclick="navToday()" style="padding:0 10px;font-size:12px;font-weight:600;height:32px;width:auto">今日</button>
+    <div class="view-tabs">
+      <button class="view-tab" id="tab-month" onclick="setView('month')">月</button>
+      <button class="view-tab active" id="tab-week"  onclick="setView('week')">週</button>
+      <button class="view-tab" id="tab-day"   onclick="setView('day')">日</button>
+    </div>
+  </div>
+  <div id="cal-area"></div>
+
+  <!-- 全体一覧 -->
+  <div class="section-title">
+    <span>📊 全体申込一覧</span>
+    <button class="csv-btn" onclick="exportCSV()">⬇ CSV出力</button>
+  </div>
+  <div class="filter-bar">
+    <select id="filter-grade" onchange="renderTable()">
+      <option value="">すべての学年</option>
+      <optgroup label="小学生">
+        <option>小1</option><option>小2</option><option>小3</option>
+        <option>小4</option><option>小5</option><option>小6</option>
+      </optgroup>
+      <optgroup label="中学生">
+        <option>中1</option><option>中2</option><option>中3</option>
+      </optgroup>
+      <optgroup label="高校生">
+        <option>高1</option><option>高2</option><option>高3</option>
+      </optgroup>
+    </select>
+    <input type="text" id="filter-student" placeholder="生徒名で絞り込み" oninput="renderTable()" />
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>生徒名</th><th>学年</th><th>日付（曜日）</th><th>開始</th><th>終了</th><th>申請日時</th></tr></thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbybnZ0dFwm0cQLzHwaLuYJyylX3BkklrJ2HD5TLsrCUp6hiDvZ-bn0oyj6JztuNVBem7Q/exec';
+const HOURS_START = 9, HOURS_END = 22;
+const TOTAL_SLOTS = HOURS_END - HOURS_START; // 13行（1行=1時間）
+const DAYS = ["日","月","火","水","木","金","土"];
+
+let allRows = [];
+let currentView = 'week'; // 'month' | 'week' | 'day'
+let weekOffset = 0;
+let monthOffset = 0;
+let dayDate = new Date();
+
+// ========== JSONP ==========
+let _cbIdx = 0;
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = '__gasCb' + (_cbIdx++);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('タイムアウト')); }, 15000);
+    window[cbName] = data => { cleanup(); resolve(data); };
+    function cleanup() { clearTimeout(timer); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+    script.onerror = () => { cleanup(); reject(new Error('通信エラー')); };
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
+    document.head.appendChild(script);
+  });
+}
+
+// ========== データ取得 ==========
+async function loadAll() {
+  document.getElementById('pending-area').innerHTML =
+    '<div class="loading"><div class="spinner"></div><br>読み込み中...</div>';
+  try {
+    const data = await jsonp(`${GAS_URL}?action=getAll`);
+    allRows = data.rows || [];
+    renderPending();
+    renderView();
+    renderTable();
+  } catch (e) {
+    showToast('読み込み失敗: ' + e.message);
+    document.getElementById('pending-area').innerHTML =
+      `<p style="padding:16px;color:#ef4444">読み込みエラー: ${e.message}</p>`;
+  }
+}
+
+// ISO日時を読みやすく変換
+function fmtDateStr(s) {
+  if (!s) return '';
+  if (String(s).includes('T')) {
+    const d = new Date(s);
+    return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+  }
+  return String(s);
+}
+function fmtTimeStr(s) {
+  if (!s) return '';
+  if (String(s).includes('T')) {
+    const d = new Date(s);
+    const jst = new Date(d.getTime() + 9*60*60*1000);
+    return `${jst.getUTCHours().toString().padStart(2,'0')}:${jst.getUTCMinutes().toString().padStart(2,'0')}`;
+  }
+  return String(s);
+}
+function cleanRow(row) {
+  return {
+    ...row,
+    '日付': fmtDateStr(row['日付']),
+    '開始時刻': fmtTimeStr(row['開始時刻']),
+    '終了時刻': fmtTimeStr(row['終了時刻']),
+  };
+}
+
+// ========== 申請中カード（生徒×日付でグループ化） ==========
+function renderPending() {
+  const area = document.getElementById('pending-area');
+  const pending = allRows.filter(r => r['状態'] === '申請中').map(cleanRow);
+  if (pending.length === 0) {
+    area.innerHTML = '<p style="color:#6b7280;padding:14px;font-size:14px">申請中の予定はありません</p>';
+    return;
+  }
+
+  // 生徒名+日付でグループ化
+  const groups = {};
+  pending.forEach(row => {
+    const key = `${row['生徒名']}__${row['日付']}`;
+    groups[key] = groups[key] || { name: row['生徒名'], date: row['日付'], dow: row['曜日'], rows: [] };
+    groups[key].rows.push(row);
+  });
+
+  const daysJP = ['日','月','火','水','木','金','土'];
+  const html = Object.values(groups)
+    .sort((a,b) => (a.date+a.name).localeCompare(b.date+b.name))
+    .map(g => {
+      const d = new Date(g.date + 'T00:00:00');
+      const dow = daysJP[d.getDay()];
+      const ids = g.rows.map(r => r['ID']);
+      const idsAttr = JSON.stringify(ids).replace(/"/g, '&quot;');
+      const times = g.rows
+        .sort((a,b) => a['開始時刻'].localeCompare(b['開始時刻']))
+        .map(r => `<span class="time-chip">${r['開始時刻']}〜${r['終了時刻']}</span>`).join('');
+      const gradeLabel = g.rows[0]['学年'] ? `<span class="grade-chip">${g.rows[0]['学年']}</span>` : '';
+      return `<div class="pending-card">
+        <div class="pending-info">
+          <div class="pending-name">👤 ${g.name} ${gradeLabel}</div>
+          <div class="pending-date">📅 ${g.date}（${dow}）</div>
+          <div class="pending-times">${times}</div>
+        </div>
+        <div class="pending-actions">
+          <button class="btn-sm btn-approve" data-ids="${idsAttr}" onclick="updateStatusBulk(JSON.parse(this.dataset.ids),'承認済み')">承認</button>
+          <button class="btn-sm btn-reject"  data-ids="${idsAttr}" onclick="updateStatusBulk(JSON.parse(this.dataset.ids),'却下')">却下</button>
+        </div>
+      </div>`;
+    }).join('');
+
+  area.innerHTML = `<div class="pending-list">${html}</div>`;
+}
+
+// ========== 承認・却下（単体） ==========
+async function updateStatus(id, status) {
+  showToast('更新中...');
+  try {
+    const data = await jsonp(`${GAS_URL}?action=updateStatus&id=${encodeURIComponent(id)}&status=${encodeURIComponent(status)}`);
+    if (data.error) throw new Error(data.error);
+    showToast(status === '承認済み' ? '承認しました' : '却下しました');
+    await loadAll();
+  } catch (e) {
+    showToast('更新失敗: ' + e.message);
+  }
+}
+
+// ========== 承認・却下（まとめて） ==========
+async function updateStatusBulk(ids, status) {
+  showToast('更新中...');
+  try {
+    for (const id of ids) {
+      const data = await jsonp(`${GAS_URL}?action=updateStatus&id=${encodeURIComponent(id)}&status=${encodeURIComponent(status)}`);
+      if (data.error) throw new Error(data.error);
+    }
+    showToast(status === '承認済み' ? `${ids.length}件承認しました` : `${ids.length}件却下しました`);
+    await loadAll();
+  } catch (e) {
+    showToast('更新失敗: ' + e.message);
+  }
+}
+
+// ========== ユーティリティ ==========
+function fmtDate(d) { return d.toISOString().slice(0,10); }
+function isToday(d) { return fmtDate(d) === fmtDate(new Date()); }
+function slotLabel(idx) { return `${(HOURS_START+idx).toString().padStart(2,'0')}:00`; }
+function timeToSlotIdx(t) {
+  if (!t) return null;
+  const [h] = String(t).split(':').map(Number);
+  const idx = h - HOURS_START;
+  return (idx < 0 || idx > TOTAL_SLOTS) ? null : idx;
+}
+function getWeekDates(offset = 0) {
+  const today = new Date(), dow = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1) + offset * 7);
+  return Array.from({length:7}, (_,i) => { const d = new Date(monday); d.setDate(monday.getDate()+i); return d; });
+}
+function buildEvByDate(dates) {
+  const evByDate = {};
+  dates.forEach(d => { evByDate[fmtDate(d)] = []; });
+  allRows.map(cleanRow).forEach(row => {
+    const date = row['日付'];
+    if (!evByDate[date]) return;
+    const si = timeToSlotIdx(row['開始時刻']);
+    const ei = timeToSlotIdx(row['終了時刻']);
+    if (si === null || ei === null || si >= ei) return;
+    evByDate[date].push({ name: row['生徒名'], status: row['状態'], si, ei });
+  });
+  return evByDate;
+}
+
+// ========== ナビゲーション ==========
+function setView(v) {
+  currentView = v;
+  ['month','week','day'].forEach(x => document.getElementById('tab-'+x).classList.toggle('active', x===v));
+  renderView();
+}
+function navPrev() {
+  if (currentView === 'month') { monthOffset--; }
+  else if (currentView === 'week') { weekOffset--; }
+  else { dayDate = new Date(dayDate); dayDate.setDate(dayDate.getDate()-1); }
+  renderView();
+}
+function navNext() {
+  if (currentView === 'month') { monthOffset++; }
+  else if (currentView === 'week') { weekOffset++; }
+  else { dayDate = new Date(dayDate); dayDate.setDate(dayDate.getDate()+1); }
+  renderView();
+}
+function navToday() {
+  weekOffset = 0; monthOffset = 0; dayDate = new Date();
+  renderView();
+}
+function renderView() {
+  if (currentView === 'month') renderMonthView();
+  else if (currentView === 'week') renderTimelineView(getWeekDates(weekOffset));
+  else renderTimelineView([new Date(dayDate)]);
+}
+
+// ========== タイムラインビュー（週・日共通） ==========
+const ROW_H = 52;
+
+function renderTimelineView(dates) {
+  const lbl = document.getElementById('cal-nav-label');
+  if (dates.length === 7) {
+    lbl.textContent = `${dates[0].getMonth()+1}/${dates[0].getDate()}（月）〜${dates[6].getMonth()+1}/${dates[6].getDate()}（日）`;
+  } else {
+    const d = dates[0];
+    lbl.textContent = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[d.getDay()]}）`;
+  }
+
+  const evByDate = buildEvByDate(dates);
+  const totalH = TOTAL_SLOTS * ROW_H;
+  const area = document.getElementById('cal-area');
+  area.innerHTML = '';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'cal-wrap';
+  const container = document.createElement('div');
+  container.className = 'cal-container';
+
+  // 時間軸
+  const timeCol = document.createElement('div');
+  timeCol.className = 'cal-time-col';
+  const corner = document.createElement('div');
+  corner.className = 'cal-time-corner';
+  corner.style.height = (dates.length > 1 ? 42 : 52) + 'px';
+  timeCol.appendChild(corner);
+  const labelsDiv = document.createElement('div');
+  labelsDiv.style.cssText = `position:relative;height:${totalH}px;`;
+  for (let h = 0; h <= TOTAL_SLOTS; h++) {
+    const tick = document.createElement('div');
+    tick.style.cssText = `position:absolute;top:${h*ROW_H-7}px;right:6px;font-size:10px;font-weight:600;color:#9ca3af;white-space:nowrap;`;
+    tick.textContent = `${(HOURS_START+h).toString().padStart(2,'0')}:00`;
+    labelsDiv.appendChild(tick);
+  }
+  timeCol.appendChild(labelsDiv);
+  container.appendChild(timeCol);
+
+  // 日付カラム
+  const daysContainer = document.createElement('div');
+  daysContainer.className = 'cal-days';
+  dates.forEach(d => {
+    const key = fmtDate(d);
+    const dow = d.getDay();
+    const col = document.createElement('div');
+    col.className = 'cal-day';
+
+    const hdr = document.createElement('div');
+    let hdrCls = 'cal-day-header';
+    if (isToday(d)) hdrCls += ' today';
+    else if (dow === 0) hdrCls += ' sunday';
+    else if (dow === 6) hdrCls += ' saturday';
+    hdr.className = hdrCls;
+    hdr.innerHTML = dates.length > 1
+      ? `<span>${DAYS[dow]}</span><span class="dn">${d.getDate()}</span>`
+      : `<span class="dn" style="font-size:18px">${d.getDate()}</span><span>${d.getMonth()+1}月</span>`;
+    col.appendChild(hdr);
+
+    const evArea = document.createElement('div');
+    evArea.className = 'cal-events-area';
+    evArea.style.height = totalH + 'px';
+    for (let h = 0; h < TOTAL_SLOTS; h++) {
+      const line = document.createElement('div');
+      line.className = 'cal-hour-line';
+      line.style.top = (h * ROW_H) + 'px';
+      evArea.appendChild(line);
+    }
+
+    const events = evByDate[key] || [];
+    const lanes = [];
+    events.sort((a,b) => a.si - b.si);
+    events.forEach(ev => {
+      let lane = 0;
+      while (lanes[lane] && lanes[lane].ei > ev.si) lane++;
+      lanes[lane] = ev;
+      ev.lane = lane;
+    });
+    const maxLane = events.length > 0 ? Math.max(...events.map(e => e.lane)) + 1 : 1;
+    const statusCls = { '申請中':'ev-pending', '承認済み':'ev-approved', '却下':'ev-rejected' };
+    events.forEach(ev => {
+      const block = document.createElement('div');
+      block.className = 'cal-event ' + (statusCls[ev.status] || '');
+      const w = 100 / maxLane;
+      block.style.cssText = `top:${ev.si*ROW_H+2}px;height:${(ev.ei-ev.si)*ROW_H-4}px;left:${ev.lane*w+1}%;width:${w-2}%;`;
+      const timeStr = `${slotLabel(ev.si)}〜${slotLabel(ev.ei)}`;
+      const bh = (ev.ei - ev.si) * ROW_H - 4;
+      block.innerHTML = bh >= 30
+        ? `<div class="ev-name">${ev.name}</div><div class="ev-time">${timeStr}</div>`
+        : `<div class="ev-name" style="font-size:10px">${ev.name}</div>`;
+      evArea.appendChild(block);
+    });
+
+    col.appendChild(evArea);
+    daysContainer.appendChild(col);
+  });
+
+  container.appendChild(daysContainer);
+  wrap.appendChild(container);
+  area.appendChild(wrap);
+}
+
+// ========== 月ビュー ==========
+function renderMonthView() {
+  const today = new Date();
+  const base = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const year = base.getFullYear(), month = base.getMonth();
+  document.getElementById('cal-nav-label').textContent = `${year}年${month+1}月`;
+
+  // 月の最初の週の月曜日を求める
+  const firstDay = new Date(year, month, 1);
+  const startDow = firstDay.getDay(); // 0=日
+  const startOffset = startDow === 0 ? 6 : startDow - 1;
+  const startDate = new Date(firstDay);
+  startDate.setDate(1 - startOffset);
+
+  // 6週分の日付を生成
+  const cells = Array.from({length:42}, (_,i) => {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    return d;
+  });
+
+  // イベントをすべてcleanして日付→リストにまとめる
+  const evByDate = {};
+  allRows.map(cleanRow).forEach(row => {
+    evByDate[row['日付']] = evByDate[row['日付']] || [];
+    evByDate[row['日付']].push(row);
+  });
+
+  const area = document.getElementById('cal-area');
+  area.innerHTML = '';
+  const mg = document.createElement('div');
+  mg.className = 'month-grid';
+
+  // 曜日ヘッダー
+  const dowRow = document.createElement('div');
+  dowRow.className = 'month-dow-row';
+  ['月','火','水','木','金','土','日'].forEach((d,i) => {
+    const cell = document.createElement('div');
+    cell.className = 'month-dow-cell' + (i===5?' saturday':i===6?' sunday':'');
+    cell.textContent = d;
+    dowRow.appendChild(cell);
+  });
+  mg.appendChild(dowRow);
+
+  const weeksDiv = document.createElement('div');
+  weeksDiv.className = 'month-weeks';
+
+  for (let w = 0; w < 6; w++) {
+    const weekRow = document.createElement('div');
+    weekRow.className = 'month-week-row';
+    for (let dw = 0; dw < 7; dw++) {
+      const d = cells[w*7+dw];
+      const key = fmtDate(d);
+      const dow = d.getDay(); // 0=日,6=土（月始まりなので表示位置はdwで制御済み）
+      const isCurrentMonth = d.getMonth() === month;
+      const isTodayDate = fmtDate(d) === fmtDate(today);
+      const cell = document.createElement('div');
+      let cellCls = 'month-cell clickable';
+      if (!isCurrentMonth) cellCls += ' other-month';
+      if (isTodayDate) cellCls += ' today-cell';
+      if (dw === 5) cellCls += ' saturday';
+      if (dw === 6) cellCls += ' sunday';
+      cell.className = cellCls;
+
+      // 日付クリックで日ビューへ
+      cell.onclick = () => { dayDate = new Date(d); setView('day'); };
+
+      const dateSpan = document.createElement('div');
+      dateSpan.className = 'month-date';
+      dateSpan.textContent = d.getDate();
+      cell.appendChild(dateSpan);
+
+      // イベント表示（最大3件）
+      const evs = evByDate[key] || [];
+      // 同じ時間帯でグループ化（開始時刻→名前でソート）
+      const sorted = evs.sort((a,b) => a['開始時刻'].localeCompare(b['開始時刻']));
+      const MAX_SHOW = 3;
+      sorted.slice(0, MAX_SHOW).forEach(ev => {
+        const chip = document.createElement('div');
+        const sc = { '申請中':'ev-pending', '承認済み':'ev-approved', '却下':'ev-rejected' };
+        chip.className = 'month-ev ' + (sc[ev['状態']] || '');
+        chip.textContent = `${ev['開始時刻']} ${ev['生徒名']}`;
+        cell.appendChild(chip);
+      });
+      if (sorted.length > MAX_SHOW) {
+        const more = document.createElement('div');
+        more.className = 'month-more';
+        more.textContent = `+${sorted.length - MAX_SHOW}件`;
+        cell.appendChild(more);
+      }
+
+      weekRow.appendChild(cell);
+    }
+    weeksDiv.appendChild(weekRow);
+  }
+  mg.appendChild(weeksDiv);
+  area.appendChild(mg);
+}
+
+// ========== テーブル ==========
+function renderTable() {
+  const gf = document.getElementById('filter-grade').value;
+  const nf = document.getElementById('filter-student').value.trim();
+  const rows = allRows
+    .filter(r => (!gf || r['学年']===gf) && (!nf || r['生徒名'].includes(nf)))
+    .map(cleanRow)
+    .sort((a,b) => (a['日付']+a['開始時刻']).localeCompare(b['日付']+b['開始時刻']));
+  document.getElementById('table-body').innerHTML = rows.map(row => `
+    <tr>
+      <td><strong>${row['生徒名']}</strong></td>
+      <td>${row['学年'] ? `<span class="grade-chip">${row['学年']}</span>` : ''}</td>
+      <td>${row['日付']}（${row['曜日']}）</td><td>${row['開始時刻']}</td>
+      <td>${row['終了時刻']}</td>
+      <td style="font-size:12px;color:#6b7280">${(row['申請日時']||'').slice(0,10)}</td>
+    </tr>`).join('');
+}
+
+// ========== CSV ==========
+function exportCSV() {
+  const gf = document.getElementById('filter-grade').value;
+  const nf = document.getElementById('filter-student').value.trim();
+  const rows = allRows
+    .filter(r => (!gf || r['学年']===gf) && (!nf || r['生徒名'].includes(nf)))
+    .map(cleanRow)
+    .sort((a,b) => (a['日付']+a['開始時刻']).localeCompare(b['日付']+b['開始時刻']));
+  const headers = ['生徒名','学年','日付','曜日','開始時刻','終了時刻','状態','申請日時'];
+  const bom = '﻿';
+  const csv = bom + [headers, ...rows.map(r => headers.map(h => r[h]||''))]
+    .map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `授業申込_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('CSVをダウンロードしました');
+}
+
+// ========== TOAST ==========
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+loadAll();
+</script>
+</body>
+</html>
