@@ -44,8 +44,8 @@
   .slot[data-state="0"]:hover { background: #dbeafe; }
   .slot[data-state="1"] { background: #93c5fd; }
   .slot[data-state="2"] { background: #fde68a; cursor: default; }
-  .slot[data-state="3"] { background: #bbf7d0; cursor: default; }
-  .slot[data-state="4"] { background: #fecaca; cursor: default; }
+  .slot[data-state="3"] { background: #fde68a; cursor: default; }
+  .slot[data-state="4"] { background: #fde68a; cursor: default; }
   .submit-bar { margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .selection-info { font-size: 13px; color: var(--text-light); flex: 1; min-width: 0; }
   .btn-inline { padding: 13px 20px; border-radius: 10px; border: none; font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s; white-space: nowrap; }
@@ -94,6 +94,13 @@
   .status-approved { background: #bbf7d0; color: #15803d; }
   .status-rejected { background: #fecaca; color: #b91c1c; }
   .loading { text-align: center; padding: 40px; color: var(--text-light); font-size: 14px; }
+  @media (max-width: 768px) {
+    .grid { grid-template-columns: 44px repeat(7, 1fr); }
+    .slot { height: 40px; }
+    .time-label { height: 40px; font-size: 9px; }
+    .btn-inline { padding: 12px 14px; font-size: 14px; }
+    .main { padding: 10px; }
+  }
   .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 8px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1f2937; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; white-space: nowrap; }
@@ -327,7 +334,7 @@ function getSlotFromEvent(e) {
 }
 function startDrag(e) {
   const slot = getSlotFromEvent(e);
-  if (!slot) return;
+  if (!slot) { return; }
   const state = parseInt(slot.dataset.state);
   if (state >= STATE.PENDING) return;
   dragging = true;
@@ -337,12 +344,16 @@ function startDrag(e) {
 }
 function moveDrag(e) {
   if (!dragging) return;
+  if (e.cancelable) e.preventDefault();
   const slot = getSlotFromEvent(e);
   if (!slot || parseInt(slot.dataset.state) >= STATE.PENDING) return;
   paintSlot(slot, dragPaintState);
-  e.preventDefault();
 }
-function endDrag() { dragging = false; updateSelectionInfo(); }
+function endDrag(e) {
+  if (!dragging) return;
+  dragging = false;
+  updateSelectionInfo();
+}
 function paintSlot(slot, state) {
   const key = slot.dataset.date, s = parseInt(slot.dataset.slot);
   localDb[key] = localDb[key] || {};
